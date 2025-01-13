@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 use lazy_static::lazy_static;
 
-/// This module provides mappings from SAIStats message numbers to their corresponding string names.
-
 lazy_static! {
+    // This module provides mappings from SAIStats message numbers to their corresponding string names.
     static ref COUNTER_TYPE_MAP: HashMap<u64, &'static str> = {
         let mut map = HashMap::new();
         map.insert(1, "SAI_OBJECT_TYPE_PORT");
@@ -55,7 +54,7 @@ lazy_static! {
         let mut map = HashMap::new();
         map.insert(0x00000000, "SAI_BUFFER_POOL_STAT_CURR_OCCUPANCY_BYTES");
         map.insert(0x00000001, "SAI_BUFFER_POOL_STAT_WATERMARK_BYTES");
-        map.insert(0x00000002, "SAI_BUFFER_POOL_STAT_DROPPED_PACKETS /** Get/set WRED green dropped packet count [uint64_t] */");
+        map.insert(0x00000002, "SAI_BUFFER_POOL_STAT_DROPPED_PACKETS");
         map.insert(0x00000014, "SAI_BUFFER_POOL_STAT_XOFF_ROOM_WATERMARK_BYTES");
         map
     };
@@ -82,7 +81,7 @@ fn get_buffer_pool_stat_name(stat: u64) -> Result<&'static str, String> {
 }
 
 /// Generates a counter name based on the provided label, type ID, and stat ID.
-fn generate_counter_name(label: u64, type_id: u64, stat_id: u64) -> Result<String, String> {
+pub(crate) fn generate_counter_name(label: u64, type_id: u64, stat_id: u64) -> Result<String, String> {
     let object_type = get_counter_type_name(type_id)?;
     let label_name = match type_id {
         1 => format!("Ethernet{}", label),
@@ -99,5 +98,5 @@ fn generate_counter_name(label: u64, type_id: u64, stat_id: u64) -> Result<Strin
         _ => return Err(format!("Unknown type_id {}", type_id)),
     }?;
 
-    Ok(format!("{}.{}.{}", object_type, label_name, stat_name))
+    Ok(format!("{}_{}_{}", object_type, label_name, stat_name))
 }
