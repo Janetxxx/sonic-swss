@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::{sync::mpsc::{Receiver, Sender}, time::timeout};
 use opentelemetry::{global, metrics::{Counter, MetricsError}, KeyValue};
 use opentelemetry_otlp::{ExportConfig, WithExportConfig};
 use opentelemetry_sdk::{runtime, Resource};
@@ -49,13 +49,26 @@ impl OtelActor {
     async fn shutdown(&self) -> Result<(), MetricsError> {
         info!("Shutting down OpenTelemetry...");
 
-        // Ensure the metrics are flushed and exported before shutdown
-        self.meter_provider.force_flush()?;  // `?` operator works now since the function returns `Result`
-        info!("TEST!");
-        self.meter_provider.shutdown()?;
 
-        // Log once the shutdown completes
-        tracing::info!("OpenTelemetry shutdown complete.");
+        let flush_result = tokio::task::spawn_blocking({
+            let meter_provider = self.meter_provider.clone();
+            move || meter_provider.force_flush()
+        })
+        .await
+        .map_err(|e|{
+            error!("Tokio task error: {:?}", e);
+            MetricsError::Other("Tokio task error".into())
+        })?;
+
+        if let Err(e) = flush_result {
+            error!("Error during OpenTelemetry flush: {:?}", e);
+        } else {
+            info!("OpenTelemetry flush successful.");
+        }
+
+        info!("debug!!!!");
+        self.meter_provider.shutdown()?;
+        info!("!TEST!");
 
         Ok(())  // Returning Result<(), MetricsError>
     }
@@ -69,7 +82,7 @@ impl OtelActor {
         }
 
         // Logging to verify shutdown flow
-        info!("DEBUG@@@@@Metrics processing complete, shutting down...");
+        info!("Metrics processing complete, shutting down...");
 
         // Ensure metrics are exported before shutdown and handle potential error
         if let Err(e) = self.shutdown().await {
