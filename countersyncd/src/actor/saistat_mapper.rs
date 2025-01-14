@@ -98,5 +98,5 @@ pub(crate) fn generate_counter_name(label: u64, type_id: u64, stat_id: u64) -> R
         _ => return Err(format!("Unknown type_id {}", type_id)),
     }?;
 
-    Ok(format!("{}_{}_{}", object_type, label_name, stat_name))
+    Ok(format!("{}.{}.{}", object_type, label_name, stat_name))
 }

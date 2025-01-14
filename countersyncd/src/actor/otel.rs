@@ -1,19 +1,22 @@
 use std::sync::Arc;
 use tokio::sync::mpsc::{Receiver, Sender};
-use opentelemetry::{global, metrics::Counter, KeyValue};
+use opentelemetry::{global, metrics::{Counter, MetricsError}, KeyValue};
 use opentelemetry_otlp::{ExportConfig, WithExportConfig};
 use opentelemetry_sdk::{runtime, Resource};
 use crate::message::saistats::{SAIStat, SAIStats, SAIStatsMessage};
 use crate::actor::saistat_mapper::generate_counter_name;
 use log::{info, error};
+use std::time::Duration;
+use tokio::time::sleep;
 
+#[derive(Debug)]
 pub struct OtelActor {
     stats_recipient: Receiver<SAIStatsMessage>,
-    provider: opentelemetry_sdk::metrics::SdkMeterProvider,
+    meter_provider: opentelemetry_sdk::metrics::SdkMeterProvider,
 }
 
 impl OtelActor {
-    pub fn new(stats_recipient: Receiver<SAIStatsMessage>) -> Self {
+    pub fn new(stats_recipient: Receiver<SAIStatsMessage>) -> Result<OtelActor, MetricsError> {
         // Build OTLP pipeline
         let export_config = ExportConfig {
             endpoint: "http://localhost:4317".to_string(),
@@ -25,7 +28,7 @@ impl OtelActor {
             KeyValue::new("service.name", "countersyncd"),
         ]);
 
-        let provider = opentelemetry_otlp::new_pipeline()
+        let meter_provider = opentelemetry_otlp::new_pipeline()
             .metrics(runtime::Tokio)
             .with_exporter(
                 opentelemetry_otlp::new_exporter()
@@ -33,25 +36,44 @@ impl OtelActor {
                     .with_export_config(export_config),
             )
             .with_resource(resource)
-            .build()
-            .expect("Failed to build OTLP pipeline");
+            .build()?;
 
-        global::set_meter_provider(provider.clone());
+        global::set_meter_provider(meter_provider.clone());
 
-        OtelActor {
+        Ok(OtelActor {
             stats_recipient,
-            provider,
-        }
+            meter_provider,
+        })
     }
+
+    async fn shutdown(&self) {
+        tracing::info!("Shutting down OpenTelemetry...");
+
+        // Ensure the metrics are flushed and exported before shutdown
+        if let Err(e) = self.meter_provider.shutdown() {
+            error!("Error during OpenTelemetry shutdown: {:?}", e);
+        }
+
+        // Add a small delay to ensure async cleanup is finished
+        tracing::info!("Waiting for OpenTelemetry shutdown to complete...");
+        sleep(Duration::from_secs(5)).await;
+
+        // Log once the shutdown completes
+        tracing::info!("OpenTelemetry shutdown complete.");
+    }
+
 
     pub async fn run(mut self) {
         while let Some(stats) = self.stats_recipient.recv().await {
+            tracing::info!("Received stats: {:?}", stats);
             self.handle_stats(stats).await;
         }
 
-        self.provider.shutdown().unwrap_or_else(|e| {
-            eprintln!("OTLP metrics shutdown error: {:?}", e);
-        });
+        // Logging to verify shutdown flow
+        tracing::info!("DEBUG@@@@@Metrics processing complete, shutting down...");
+        // Ensure metrics are exported before shutdown
+        self.shutdown();
+
     }
 
     async fn handle_stats(&self, stats: SAIStatsMessage) {
@@ -71,24 +93,19 @@ impl OtelActor {
 
         // Generate a more descriptive counter name
         if let Ok(counter_name) = generate_counter_name(sai_stat.label as u64, sai_stat.type_id as u64, sai_stat.stat_id as u64) {
-            // Ensure counter name conforms to the metrics naming convention
-            let counter_name = counter_name.replace('.', "_");
-
             // Create or get the counter from the meter
             let counter: Counter<u64> = meter.u64_counter(counter_name.clone()).init();
 
             // Add value to the counter
             counter.add(sai_stat.counter, &[KeyValue::new("observation_time", observation_time.to_string())]);
 
-            info!("Successfully updated metric: {} with value: {}", counter_name.clone(), sai_stat.counter);
+            info!("Successfully created metric: {} with value: {}", counter_name.clone(), sai_stat.counter);
         } else {
             error!("Failed to generate counter name for stat: {:?}", sai_stat);
         }
     }
 
-    fn shutdown(&self) {
-        self.provider.shutdown().unwrap();
-    }
+
 
 
 }

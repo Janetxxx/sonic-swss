@@ -7,6 +7,7 @@ use tokio::{spawn, sync::mpsc::channel};
 use actor::{netlink::{NetlinkActor, get_genl_family_group}, ipfix::IpfixActor, otel::OtelActor};
 
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     tracing_subscriber::registry()
@@ -16,12 +17,13 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
 
     tracing::info!("Starting up");
 
-    let (stats_sender, stats_recipient) = channel::<SAIStatsMessage>(1);
+    let (stats_sender, stats_recipient) = channel::<SAIStatsMessage>(100);
 
     // Create and initialize the OtelActor
-    let otel_actor = OtelActor::new(stats_recipient);
+    let otel_actor = OtelActor::new(stats_recipient)?;
 
     spawn(async move {
+        tracing::info!("Spawning OtelActor");
         otel_actor.run().await;
     });
 
@@ -46,11 +48,12 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     ];
 
     for stat in stats {
+        tracing::info!("Sent stats: {:?}", stat);
         stats_sender.send(stat.into()).await?;
     }
 
     // Allow some time for processing before shutdown
-    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+    tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
 
     // Shutdown OpenTelemetry resources gracefully
     tracing::info!("Shutting down OtelActor and OpenTelemetry resources.");
