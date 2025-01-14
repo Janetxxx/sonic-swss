@@ -46,21 +46,20 @@ impl OtelActor {
         })
     }
 
-    async fn shutdown(&self) {
-        tracing::info!("Shutting down OpenTelemetry...");
+    async fn shutdown(&self) -> Result<(), MetricsError> {
+        info!("Shutting down OpenTelemetry...");
 
         // Ensure the metrics are flushed and exported before shutdown
-        if let Err(e) = self.meter_provider.shutdown() {
-            error!("Error during OpenTelemetry shutdown: {:?}", e);
-        }
-
-        // Add a small delay to ensure async cleanup is finished
-        tracing::info!("Waiting for OpenTelemetry shutdown to complete...");
-        sleep(Duration::from_secs(5)).await;
+        self.meter_provider.force_flush()?;  // `?` operator works now since the function returns `Result`
+        info!("TEST!");
+        self.meter_provider.shutdown()?;
 
         // Log once the shutdown completes
         tracing::info!("OpenTelemetry shutdown complete.");
+
+        Ok(())  // Returning Result<(), MetricsError>
     }
+
 
 
     pub async fn run(mut self) {
@@ -70,11 +69,14 @@ impl OtelActor {
         }
 
         // Logging to verify shutdown flow
-        tracing::info!("DEBUG@@@@@Metrics processing complete, shutting down...");
-        // Ensure metrics are exported before shutdown
-        self.shutdown();
+        info!("DEBUG@@@@@Metrics processing complete, shutting down...");
 
+        // Ensure metrics are exported before shutdown and handle potential error
+        if let Err(e) = self.shutdown().await {
+            tracing::error!("Error during OpenTelemetry shutdown: {:?}", e);
+        }
     }
+
 
     async fn handle_stats(&self, stats: SAIStatsMessage) {
         let stats = stats.clone();

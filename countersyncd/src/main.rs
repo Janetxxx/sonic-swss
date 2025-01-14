@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     // Create and initialize the OtelActor
     let otel_actor = OtelActor::new(stats_recipient)?;
 
-    spawn(async move {
+    let otel_handle = tokio::spawn(async move {
         tracing::info!("Spawning OtelActor");
         otel_actor.run().await;
     });
@@ -52,8 +52,14 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
         stats_sender.send(stat.into()).await?;
     }
 
+    drop(stats_sender);
+
     // Allow some time for processing before shutdown
-    tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+    //tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+
+    if let Err(e) =otel_handle.await {
+        tracing::error!("Error during OtelActor shutdown: {:?}", e);
+    }
 
     // Shutdown OpenTelemetry resources gracefully
     tracing::info!("Shutting down OtelActor and OpenTelemetry resources.");
