@@ -66,9 +66,16 @@ impl OtelActor {
             info!("OpenTelemetry flush successful.");
         }
 
-        info!("debug!!!!");
-        self.meter_provider.shutdown()?;
-        info!("!TEST!");
+        tokio::task::spawn_blocking({
+            let meter_provider = self.meter_provider.clone();
+            move || {
+                if let Err(e) = meter_provider.shutdown() {
+                    error!("Error during OpenTelemetry shutdown: {:?}", e);
+                }
+            }
+        })
+        .await
+        .expect("Shutdown task panicked");
 
         Ok(())  // Returning Result<(), MetricsError>
     }
@@ -119,8 +126,6 @@ impl OtelActor {
             error!("Failed to generate counter name for stat: {:?}", sai_stat);
         }
     }
-
-
 
 
 }
