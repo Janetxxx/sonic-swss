@@ -3,7 +3,7 @@ mod actor;
 use std::error::Error;
 use message::saistats::{SAIStat, SAIStats, SAIStatsMessage};
 use tokio::{spawn, sync::mpsc::channel};
-
+use tokio::{sync::oneshot, task};
 use actor::{netlink::{NetlinkActor, get_genl_family_group}, ipfix::IpfixActor, otel::OtelActor};
 
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
@@ -17,10 +17,11 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
 
     tracing::info!("Starting up");
 
-    let (stats_sender, stats_recipient) = channel::<SAIStatsMessage>(100);
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+    let (stats_sender, stats_recipient) = channel::<SAIStatsMessage>(1);
 
     // Create and initialize the OtelActor
-    let otel_actor = OtelActor::new(stats_recipient)?;
+    let otel_actor = OtelActor::new(stats_recipient, shutdown_tx)?;
 
     let otel_handle = tokio::spawn(async move {
         tracing::info!("Spawning OtelActor");
@@ -31,17 +32,15 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
         SAIStats {
             observation_time: 2,
             stats: vec![
-                SAIStat {
-                    label: 1, // SAI_OBJECT_TYPE_PORT
+                SAIStat { label: 1, // SAI_OBJECT_TYPE_PORT, Ethernet1
                     type_id: 1, // SAI_OBJECT_TYPE_PORT
-                    stat_id: 0x00000001, // SAI_PORT_STAT_IF_IN_UCAST_PKTS
-                    counter: 3,
+                    stat_id: 1, // 0x00000001, SAI_PORT_STAT_IF_IN_UCAST_PKTS
+                    counter: 3
                 },
-                SAIStat {
-                    label: 3, // SAI_OBJECT_TYPE_BUFFER_POOL
+                SAIStat { label: 3, // SAI_OBJECT_TYPE_BUFFER_POOL, BUFFER_POOL_3
                     type_id: 24, // SAI_OBJECT_TYPE_BUFFER_POOL
-                    stat_id: 0x00000002, // SAI_BUFFER_POOL_STAT_DROPPED_PACKETS
-                    counter: 2,
+                    stat_id: 2, // 0x00000002, SAI_BUFFER_POOL_STAT_DROPPED_PACKETS
+                    counter: 2
                 },
             ],
         }
@@ -57,7 +56,11 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     // Allow some time for processing before shutdown
     //tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
 
-    if let Err(e) =otel_handle.await {
+    if let Err(e) = shutdown_rx.await {
+        tracing::error!("Failed to receive shutdown signal from OtelActor: {:?}", e);
+    }
+
+    if let Err(e) = otel_handle.await {
         tracing::error!("Error during OtelActor shutdown: {:?}", e);
     }
 

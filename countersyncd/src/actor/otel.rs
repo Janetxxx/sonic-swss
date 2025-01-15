@@ -1,5 +1,5 @@
-use std::sync::Arc;
-use tokio::{sync::mpsc::{Receiver, Sender}, time::timeout};
+use std::{net::Shutdown, sync::Arc};
+use tokio::{sync::mpsc::{Receiver, Sender}, sync::oneshot};
 use opentelemetry::{global, metrics::{Counter, MetricsError}, KeyValue};
 use opentelemetry_otlp::{ExportConfig, WithExportConfig};
 use opentelemetry_sdk::{runtime, Resource};
@@ -13,14 +13,16 @@ use tokio::time::sleep;
 pub struct OtelActor {
     stats_recipient: Receiver<SAIStatsMessage>,
     meter_provider: opentelemetry_sdk::metrics::SdkMeterProvider,
+    shutdown_notifier: Option<oneshot::Sender<()>>,
 }
 
 impl OtelActor {
-    pub fn new(stats_recipient: Receiver<SAIStatsMessage>) -> Result<OtelActor, MetricsError> {
+    pub fn new(stats_recipient: Receiver<SAIStatsMessage>, shutdown_notifier: oneshot::Sender<()>) -> Result<OtelActor, MetricsError> {
         // Build OTLP pipeline
         let export_config = ExportConfig {
             endpoint: "http://localhost:4317".to_string(),
             protocol: opentelemetry_otlp::Protocol::Grpc,
+            timeout: Duration::from_secs(5),
             ..ExportConfig::default()
         };
 
@@ -43,13 +45,14 @@ impl OtelActor {
         Ok(OtelActor {
             stats_recipient,
             meter_provider,
+            shutdown_notifier: Some(shutdown_notifier)
         })
     }
 
-    async fn shutdown(&self) -> Result<(), MetricsError> {
+    async fn shutdown(self) -> Result<(), MetricsError> {
         info!("Shutting down OpenTelemetry...");
 
-
+        //force flush
         let flush_result = tokio::task::spawn_blocking({
             let meter_provider = self.meter_provider.clone();
             move || meter_provider.force_flush()
@@ -57,7 +60,7 @@ impl OtelActor {
         .await
         .map_err(|e|{
             error!("Tokio task error: {:?}", e);
-            MetricsError::Other("Tokio task error".into())
+            MetricsError::Other("Error during OpenTelemetry force flush".into())
         })?;
 
         if let Err(e) = flush_result {
@@ -66,6 +69,9 @@ impl OtelActor {
             info!("OpenTelemetry flush successful.");
         }
 
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        // shutdown
         tokio::task::spawn_blocking({
             let meter_provider = self.meter_provider.clone();
             move || {
@@ -76,6 +82,13 @@ impl OtelActor {
         })
         .await
         .expect("Shutdown task panicked");
+
+        //Notify main function that shutdown is complete
+        if let Some(notifier) = self.shutdown_notifier {
+            let _ = notifier.send(());
+        }
+
+        info!("OpenTelemetry shutdown complete.");
 
         Ok(())  // Returning Result<(), MetricsError>
     }
