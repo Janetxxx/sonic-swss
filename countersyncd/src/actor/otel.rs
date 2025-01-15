@@ -4,7 +4,7 @@ use opentelemetry::{global, metrics::{Counter, MetricsError}, KeyValue};
 use opentelemetry_otlp::{ExportConfig, WithExportConfig};
 use opentelemetry_sdk::{runtime, Resource};
 use crate::message::saistats::{SAIStat, SAIStats, SAIStatsMessage};
-use crate::actor::saistat_mapper::generate_counter_name;
+use crate::actor::saistat_mapper::generate_metric_info;
 use log::{info, error};
 use std::time::Duration;
 use tokio::time::sleep;
@@ -126,17 +126,31 @@ impl OtelActor {
             None,
         );
 
-        // Generate a more descriptive counter name
-        if let Ok(counter_name) = generate_counter_name(sai_stat.label as u64, sai_stat.type_id as u64, sai_stat.stat_id as u64) {
-            // Create or get the counter from the meter
-            let counter: Counter<u64> = meter.u64_counter(counter_name.clone()).init();
+        // Instead of a single counter name with object_type + label_name + stat_name,
+        // return a shorter metric name plus an "object_name" label.
+        if let Ok((metric_name, object_label)) = generate_metric_info(
+            sai_stat.label as u64,
+            sai_stat.type_id as u64,
+            sai_stat.stat_id as u64,
+        ) {
+            let counter: Counter<u64> = meter.u64_counter(metric_name.clone()).init();
 
-            // Add value to the counter
-            counter.add(sai_stat.counter, &[KeyValue::new("observation_time", observation_time.to_string())]);
+            // Add the value to the counter, attaching labels for "object_name" and
+            // "observation_time".
+            counter.add(
+                sai_stat.counter,
+                &[
+                    KeyValue::new("object_name", object_label),
+                    KeyValue::new("observation_time", observation_time.to_string()),
+                ],
+            );
 
-            info!("Successfully created metric: {} with value: {}", counter_name.clone(), sai_stat.counter);
+            info!(
+                "Successfully created metric: {} with counter value: {}",
+                metric_name, sai_stat.counter
+            );
         } else {
-            error!("Failed to generate counter name for stat: {:?}", sai_stat);
+            error!("Failed to generate metric info for stat: {:?}", sai_stat);
         }
     }
 

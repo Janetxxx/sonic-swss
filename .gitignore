@@ -4,6 +4,8 @@
 *.lo
 *.o
 *.pyc
+countersyncd/target
+countersyncd/Cargo.lock
 
 # Packaging Files #
 ###################

@@ -81,16 +81,24 @@ fn get_buffer_pool_stat_name(stat: u64) -> Result<&'static str, String> {
 }
 
 /// Generates a counter name based on the provided label, type ID, and stat ID.
-pub(crate) fn generate_counter_name(label: u64, type_id: u64, stat_id: u64) -> Result<String, String> {
-    let object_type = get_counter_type_name(type_id)?;
-    let label_name = match type_id {
+pub(crate) fn generate_metric_info(label: u64, type_id: u64, stat_id: u64) -> Result<(String, String), String> {
+    let object_type = match type_id {
+        1 => "port",
+        21 => "queue",
+        24 => "buffer_pool",
+        26 => "pg",
+        _ => return Err(format!("Unknown type_id {}", type_id)),
+    };
+
+    let object_label = match type_id {
         1 => format!("Ethernet{}", label),
         21 => format!("QUEUE_{}", label),
         24 => format!("BUFFER_POOL_{}", label),
         26 => format!("PG_{}", label),
         _ => return Err(format!("Unknown type_id {}", type_id)),
     };
-    let stat_name = match type_id {
+
+    let raw_stat_name = match type_id {
         1 => get_port_stat_name(stat_id),
         21 => get_queue_stat_name(stat_id),
         24 => get_buffer_pool_stat_name(stat_id),
@@ -98,5 +106,15 @@ pub(crate) fn generate_counter_name(label: u64, type_id: u64, stat_id: u64) -> R
         _ => return Err(format!("Unknown type_id {}", type_id)),
     }?;
 
-    Ok(format!("{}.{}.{}", object_type, label_name, stat_name))
+    // Strip out SAI_ prefix parts and convert to lowercase
+    let stat_name = raw_stat_name
+        .trim_start_matches("SAI_PORT_STAT_")
+        .trim_start_matches("SAI_QUEUE_STAT_")
+        .trim_start_matches("SAI_BUFFER_POOL_STAT_")
+        .trim_start_matches("SAI_INGRESS_PRIORITY_GROUP_STAT_")
+        .to_lowercase();
+
+    let metric_name = format!("{}.{}", object_type, stat_name);
+
+    Ok((metric_name, object_label))
 }
