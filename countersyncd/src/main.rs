@@ -1,5 +1,5 @@
-mod message;
-mod actor;
+pub mod message;
+pub mod actor;
 use std::error::Error;
 use message::saistats::{SAIStat, SAIStats, SAIStatsMessage};
 use tokio::{spawn, sync::mpsc::channel};

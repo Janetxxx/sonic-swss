@@ -1,13 +1,15 @@
-use std::{net::Shutdown, sync::Arc};
-use tokio::{sync::mpsc::{Receiver, Sender}, sync::oneshot};
-use opentelemetry::{global, metrics::{Counter, MetricsError}, KeyValue};
+use std::{net::Shutdown, sync::Arc, time::Duration};
+use tokio::{sync::mpsc::{Receiver, Sender}, sync::oneshot, time::sleep};
+use opentelemetry::{global, metrics::{Gauge, MetricsError}, KeyValue};
 use opentelemetry_otlp::{ExportConfig, WithExportConfig};
 use opentelemetry_sdk::{runtime, Resource};
+use opentelemetry_proto::tonic::{
+    common::v1::{KeyValue as ProtoKeyValue, AnyValue, any_value::Value},
+    metrics::v1::{Metric, Gauge as ProtoGauge, NumberDataPoint, number_data_point},
+};
 use crate::message::saistats::{SAIStat, SAIStats, SAIStatsMessage};
 use crate::actor::saistat_mapper::generate_metric_info;
 use log::{info, error};
-use std::time::Duration;
-use tokio::time::sleep;
 
 #[derive(Debug)]
 pub struct OtelActor {
@@ -119,34 +121,48 @@ impl OtelActor {
     }
 
     async fn convert_to_otlp_metric(&self, sai_stat: &SAIStat, observation_time: u64) {
-        let meter = global::meter_with_version(
-            env!("CARGO_PKG_NAME"),
-            Some(env!("CARGO_PKG_VERSION")),
-            Some(opentelemetry_semantic_conventions::SCHEMA_URL),
-            None,
-        );
-
-        // Instead of a single counter name with object_type + label_name + stat_name,
-        // return a shorter metric name plus an "object_name" label.
         if let Ok((metric_name, object_label)) = generate_metric_info(
             sai_stat.label as u64,
             sai_stat.type_id as u64,
             sai_stat.stat_id as u64,
         ) {
-            let counter: Counter<u64> = meter.u64_counter(metric_name.clone()).init();
-
-            // Add the value to the counter, attaching labels for "object_name" and
-            // "observation_time".
-            counter.add(
-                sai_stat.counter,
-                &[
-                    KeyValue::new("object_name", object_label),
-                    KeyValue::new("observation_time", observation_time.to_string()),
+            // Create raw OTLP protocol buffer objects
+            // Create data point with observation time
+            let data_point = NumberDataPoint {
+                time_unix_nano: observation_time,
+                value: Some(opentelemetry_proto::tonic::metrics::v1::number_data_point::Value::AsInt(sai_stat.counter as i64)),
+                attributes: vec![
+                    opentelemetry_proto::tonic::common::v1::KeyValue {
+                        key: "object_name".to_string(),
+                        value: Some(opentelemetry_proto::tonic::common::v1::AnyValue {
+                            value: Some(opentelemetry_proto::tonic::common::v1::any_value::Value::StringValue(
+                                object_label.clone()
+                            )),
+                        }),
+                    }
                 ],
+                ..Default::default()
+            };
+
+            // Create the guage with the data point
+            let proto_gauge = ProtoGauge {
+                data_points: vec![data_point],
+            };
+
+            // Create the metric with the gauge
+            let metric = Metric {
+                name: metric_name.clone(),
+                data: Some(opentelemetry_proto::tonic::metrics::v1::metric::Data::Gauge(proto_gauge)),
+                ..Default::default()
+            };
+
+            info!(
+                "OTLP Metric:\n{:#?}",
+                metric
             );
 
             info!(
-                "Successfully created metric: {} with counter value: {}",
+                "Successfully created metric: {} with gauge value: {}",
                 metric_name, sai_stat.counter
             );
         } else {
