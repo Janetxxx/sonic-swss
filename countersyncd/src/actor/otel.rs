@@ -59,10 +59,8 @@ impl OtelActor {
             self.handle_stats(stats).await;
         }
 
-        // Logging to verify shutdown flow
         info!("Metrics processing complete, shutting down...");
 
-        // Ensure metrics are exported before shutdown and handle potential error
         if let Err(e) = self.shutdown().await {
             tracing::error!("Error during OpenTelemetry shutdown: {:?}", e);
         }
@@ -84,7 +82,7 @@ impl OtelActor {
         ) {
             // Create raw OTLP protocol buffer objects
             let data_point = NumberDataPoint {
-                time_unix_nano: observation_time,  // Use timestamp directly
+                time_unix_nano: observation_time,
                 value: Some(number_data_point::Value::AsInt(sai_stat.counter as i64)),
                 attributes: vec![
                     ProtoKeyValue {
@@ -197,7 +195,6 @@ async fn test_metrics_export_and_prometheus_endpoint() -> Result<(), Box<dyn std
     let timestamp = utc.timestamp_nanos_opt()
         .expect("Timestamp conversion failed") as u64;
 
-    // Create test stats using the exact data from main.rs
     let test_stats = vec![
         SAIStats {
             observation_time: timestamp,
