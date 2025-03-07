@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 lazy_static = "1.4.0"
 serde_json = "1.0.135"
+chrono = "0.4.40"
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }
@@ -47,7 +48,7 @@ opentelemetry-stdout = "0.25"
 opentelemetry-semantic-conventions = "0.25"
 opentelemetry-http = "0.25"
 opentelemetry-otlp = { version = "0.25", features = ["tonic", "metrics"] }
-opentelemetry-proto = { version = "0.25", features = ["tonic", "metrics"] }
+opentelemetry-proto = { version = "0.25", features = ["tonic", "metrics", "gen-tonic"] }
 
 # gRPC and HTTP
 tonic = "0.12"

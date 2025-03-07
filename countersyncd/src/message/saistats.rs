@@ -49,7 +49,7 @@ impl From<(&FieldSpecifier, &DataRecordValue)> for SAIStat {
 
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct SAIStats {
     pub observation_time: u64,
     pub stats: Vec<SAIStat>,

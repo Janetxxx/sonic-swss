@@ -7,9 +7,10 @@ use tokio::{sync::oneshot, task};
 use actor::{netlink::{NetlinkActor, get_genl_family_group}, ipfix::IpfixActor, otel::OtelActor};
 
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
+use chrono::{DateTime, TimeZone, Utc};
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+async fn main() -> Result<(), Box<dyn std::error::Error>>{
     tracing_subscriber::registry()
         .with(fmt::layer())
         .with(EnvFilter::from_default_env())
@@ -21,16 +22,22 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     let (stats_sender, stats_recipient) = channel::<SAIStatsMessage>(1);
 
     // Create and initialize the OtelActor
-    let otel_actor = OtelActor::new(stats_recipient, shutdown_tx)?;
+    let otel_actor = OtelActor::new(stats_recipient, shutdown_tx).await?;
 
     let otel_handle = tokio::spawn(async move {
         tracing::info!("Spawning OtelActor");
         otel_actor.run().await;
     });
 
+    // Unix timestamp in nanoseconds
+    let utc: DateTime<Utc> = Utc::now();
+    tracing::info!("UTC timestamp: {:?}", utc);
+    let timestamp = utc.timestamp_nanos_opt()
+        .expect("Timestamp conversion failed") as u64;
+
     let stats = vec![
         SAIStats {
-            observation_time: 2,
+            observation_time: timestamp,
             stats: vec![
                 SAIStat { label: 1, // SAI_OBJECT_TYPE_PORT, Ethernet1
                     type_id: 1, // SAI_OBJECT_TYPE_PORT
