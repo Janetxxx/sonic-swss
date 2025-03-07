@@ -1,0 +1,38 @@
+2025-03-07T02:42:42.470590Z  INFO countersyncd: Starting up
+2025-03-07T02:42:42.471477Z  INFO countersyncd: UTC timestamp: 2025-03-07T02:42:42.471462977Z
+2025-03-07T02:42:42.471513Z  INFO countersyncd: Sent stats: SAIStats { observation_time: 1741315362471462977, stats: [SAIStat { label: 1, type_id: 1, stat_id: 1, counter: 3 }, SAIStat { label: 3, type_id: 24, stat_id: 2, counter: 2 }] }
+2025-03-07T02:42:42.471621Z  INFO countersyncd: Spawning OtelActor
+2025-03-07T02:42:42.471665Z  INFO countersyncd::actor::otel: Received stats: SAIStats { observation_time: 1741315362471462977, stats: [SAIStat { label: 1, type_id: 1, stat_id: 1, counter: 3 }, SAIStat { label: 3, type_id: 24, stat_id: 2, counter: 2 }] }
+2025-03-07T02:42:42.471741Z  INFO countersyncd::actor::otel: Created data point: NumberDataPoint { attributes: [KeyValue { key: "object_name", value: Some(AnyValue { value: Some(StringValue("Ethernet1")) }) }], start_time_unix_nano: 0, time_unix_nano: 1741315362471462977, exemplars: [], flags: 0, value: Some(AsInt(3)) }
+2025-03-07T02:42:42.471789Z  INFO countersyncd::actor::otel: Formated data point:
+        attributes: [KeyValue { key: "object_name", value: Some(AnyValue { value: Some(StringValue("Ethernet1")) }) }]
+        time_unix_nano: 1741315362471462977
+        value: Some(AsInt(3))
+2025-03-07T02:42:42.471817Z  INFO countersyncd::actor::otel: Created gauge: Gauge { data_points: [NumberDataPoint { attributes: [KeyValue { key: "object_name", value: Some(AnyValue { value: Some(StringValue("Ethernet1")) }) }], start_time_unix_nano: 0, time_unix_nano: 1741315362471462977, exemplars: [], flags: 0, value: Some(AsInt(3)) }] }
+2025-03-07T02:42:42.471852Z  INFO countersyncd::actor::otel: Created metric: Metric { name: "port.if_in_ucast_pkts", description: "SAI counter statistic", unit: "", metadata: [KeyValue { key: "object_name_metadata", value: Some(AnyValue { value: Some(StringValue("Ethernet1")) }) }], data: Some(Gauge(Gauge { data_points: [NumberDataPoint { attributes: [KeyValue { key: "object_name", value: Some(AnyValue { value: Some(StringValue("Ethernet1")) }) }], start_time_unix_nano: 0, time_unix_nano: 1741315362471462977, exemplars: [], flags: 0, value: Some(AsInt(3)) }] })) }
+2025-03-07T02:42:42.472866Z  INFO countersyncd::actor::otel: Successfully exported metric: port.if_in_ucast_pkts with gauge value: 3
+2025-03-07T02:42:42.472909Z  INFO countersyncd::actor::otel: Created data point: NumberDataPoint { attributes: [KeyValue { key: "object_name", value: Some(AnyValue { value: Some(StringValue("BUFFER_POOL_3")) }) }], start_time_unix_nano: 0, time_unix_nano: 1741315362471462977, exemplars: [], flags: 0, value: Some(AsInt(2)) }
+2025-03-07T02:42:42.472929Z  INFO countersyncd::actor::otel: Formated data point:
+        attributes: [KeyValue { key: "object_name", value: Some(AnyValue { value: Some(StringValue("BUFFER_POOL_3")) }) }]
+        time_unix_nano: 1741315362471462977
+        value: Some(AsInt(2))
+2025-03-07T02:42:42.472944Z  INFO countersyncd::actor::otel: Created gauge: Gauge { data_points: [NumberDataPoint { attributes: [KeyValue { key: "object_name", value: Some(AnyValue { value: Some(StringValue("BUFFER_POOL_3")) }) }], start_time_unix_nano: 0, time_unix_nano: 1741315362471462977, exemplars: [], flags: 0, value: Some(AsInt(2)) }] }
+2025-03-07T02:42:42.472961Z  INFO countersyncd::actor::otel: Created metric: Metric { name: "buffer_pool.dropped_packets", description: "SAI counter statistic", unit: "", metadata: [KeyValue { key: "object_name_metadata", value: Some(AnyValue { value: Some(StringValue("BUFFER_POOL_3")) }) }], data: Some(Gauge(Gauge { data_points: [NumberDataPoint { attributes: [KeyValue { key: "object_name", value: Some(AnyValue { value: Some(StringValue("BUFFER_POOL_3")) }) }], start_time_unix_nano: 0, time_unix_nano: 1741315362471462977, exemplars: [], flags: 0, value: Some(AsInt(2)) }] })) }
+2025-03-07T02:42:42.473656Z  INFO countersyncd::actor::otel: Successfully exported metric: buffer_pool.dropped_packets with gauge value: 2
+2025-03-07T02:42:42.473686Z  INFO countersyncd::actor::otel: Metrics processing complete, shutting down...
+2025-03-07T02:42:42.473699Z  INFO countersyncd::actor::otel: Shutting down OpenTelemetry...
+2025-03-07T02:42:44.474885Z  INFO countersyncd::actor::otel: OpenTelemetry shutdown complete.
+2025-03-07T02:42:44.474985Z  INFO countersyncd: Shutting down OtelActor and OpenTelemetry resources.
+curl http://localhost:8889/metrics
+# HELP buffer_pool_dropped_packets SAI counter statistic
+# TYPE buffer_pool_dropped_packets gauge
+buffer_pool_dropped_packets{job="countersyncd",object_name="BUFFER_POOL_3",os_name="demo-os",os_type="demo-os",os_version="202411.0"} 2
+# HELP port_if_in_ucast_pkts SAI counter statistic
+# TYPE port_if_in_ucast_pkts gauge
+port_if_in_ucast_pkts{job="countersyncd",object_name="Ethernet1",os_name="demo-os",os_type="demo-os",os_version="202411.0"} 3
+
+
+
+
+
+
