@@ -1,11 +1,51 @@
 services:
   otel-collector:
-    image: otel/opentelemetry-collector:latest
+    image: otel/opentelemetry-collector-contrib:latest
     container_name: otel-collector
+    networks:
+      - monitoring
     restart: unless-stopped
     ports:
       - "4317:4317"
-      - "8889:8889"
+      - "4318:4318"
     volumes:
       - ./otel-collector-config.yaml:/etc/otel-collector/config.yaml
     command: ["--config=/etc/otel-collector/config.yaml"]
+
+  influxdb:
+    image: influxdb:2.7
+    container_name: influxdb
+    restart: unless-stopped
+    networks:
+      - monitoring
+    ports:
+      - "8086:8086"
+    environment:
+      # Direct environment variables instead of secrets
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: password123
+      DOCKER_INFLUXDB_INIT_ORG: docs
+      DOCKER_INFLUXDB_INIT_BUCKET: home
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: mytoken123456789
+    # secrets:
+    #   - influxdb2-admin-username
+    #   - influxdb2-admin-password
+    #   - influxdb2-admin-token
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+networks:
+  monitoring:
+    driver: bridge
+
+
+# secrets:
+#   influxdb2-admin-username:
+#     file: ~/.env.influxdb2-admin-username
+#   influxdb2-admin-password:
+#     file: ~/.env.influxdb2-admin-password
+#   influxdb2-admin-token:
+#     file: ~/.env.influxdb2-admin-token
+
+volumes:
+  influxdb-data:

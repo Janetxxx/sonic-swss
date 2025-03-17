@@ -7,7 +7,7 @@ use tokio::{sync::oneshot, task};
 use actor::{netlink::{NetlinkActor, get_genl_family_group}, ipfix::IpfixActor, otel::OtelActor};
 
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, TimeZone, Utc, Timelike};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>>{
@@ -30,10 +30,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>>{
     });
 
     // Unix timestamp in nanoseconds
-    let utc: DateTime<Utc> = Utc::now();
+    // let utc: DateTime<Utc> = Utc::now();
+    // tracing::info!("UTC timestamp: {:?}", utc);
+    // let timestamp = utc.timestamp_nanos_opt()
+    //     .expect("Timestamp conversion failed") as u64;
+
+    // Custom Unix timestamp in nanoseconds
+    let utc = Utc.with_ymd_and_hms(2025, 3, 01, 15, 30, 0)
+        .single()
+        .expect("Invalid date time")
+        .with_nanosecond(0)
+        .expect("Invalid nanosecond");
     tracing::info!("UTC timestamp: {:?}", utc);
     let timestamp = utc.timestamp_nanos_opt()
-        .expect("Timestamp conversion failed") as u64;
+        .expect("Timestamp1 conversion failed") as u64;
 
     let stats = vec![
         SAIStats {
@@ -48,6 +58,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>>{
                     type_id: 24, // SAI_OBJECT_TYPE_BUFFER_POOL
                     stat_id: 2, // 0x00000002, SAI_BUFFER_POOL_STAT_DROPPED_PACKETS
                     counter: 2
+                },
+            ],
+        },
+        SAIStats {
+            observation_time: timestamp,
+            stats: vec![
+                SAIStat { label: 2, // SAI_OBJECT_TYPE_PORT, Ethernet2
+                    type_id: 1, // SAI_OBJECT_TYPE_PORT
+                    stat_id: 1, // 0x00000001, SAI_PORT_STAT_IF_IN_UCAST_PKTS
+                    counter: 7
+                },
+                SAIStat { label: 4, // SAI_OBJECT_TYPE_BUFFER_POOL, BUFFER_POOL_4
+                    type_id: 24, // SAI_OBJECT_TYPE_BUFFER_POOL
+                    stat_id: 2, // 0x00000002, SAI_BUFFER_POOL_STAT_DROPPED_PACKETS
+                    counter: 8
                 },
             ],
         }

@@ -3,24 +3,48 @@ receivers:
     protocols:
       grpc:
         endpoint: 0.0.0.0:4317
+      http:
+        endpoint: "0.0.0.0:4318"  # Removed debug: true
 
 exporters:
-  prometheus:
-    endpoint: "0.0.0.0:8889"
-    const_labels:
-      "os_name": "demo-os"
-      "os_type": "demo-os"
-      "os_version": "202411.0"
-
+  influxdb:
+    endpoint: http://influxdb:8086
+    org: docs
+    bucket: home
+    token: mytoken123456789
+    timeout: 10s
   debug:
     verbosity: detailed
 
+
 processors:
   batch:
+    timeout: 1s
+    send_batch_size: 10
+
+extensions:
+  health_check:
+    endpoint: ":13133"
+  pprof:
+    endpoint: ":1777"
+  zpages:
+    endpoint: ":55679"
 
 service:
+  telemetry:
+    logs:
+      level: "debug"
+  extensions: [health_check, pprof, zpages]
   pipelines:
     metrics:
       receivers: [otlp]
       processors: [batch]
-      exporters: [logging, debug, prometheus]
+      exporters: [debug, influxdb]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [influxdb, debug]
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug, influxdb]

@@ -59,8 +59,10 @@ impl OtelActor {
             self.handle_stats(stats).await;
         }
 
+        // Logging to verify shutdown flow
         info!("Metrics processing complete, shutting down...");
 
+        // Ensure metrics are exported before shutdown and handle potential error
         if let Err(e) = self.shutdown().await {
             tracing::error!("Error during OpenTelemetry shutdown: {:?}", e);
         }
@@ -195,6 +197,7 @@ async fn test_metrics_export_and_prometheus_endpoint() -> Result<(), Box<dyn std
     let timestamp = utc.timestamp_nanos_opt()
         .expect("Timestamp conversion failed") as u64;
 
+    // Create test stats using the exact data from main.rs
     let test_stats = vec![
         SAIStats {
             observation_time: timestamp,
@@ -227,7 +230,7 @@ async fn test_metrics_export_and_prometheus_endpoint() -> Result<(), Box<dyn std
     // Create HTTP client and fetch metrics
     let client = reqwest::Client::new();
 
-    let prometheus_response = client.get("http://localhost:8889/metrics")
+    let prometheus_response = client.get("http://localhost:8086/metrics")
         .send()
         .await?
         .text()
