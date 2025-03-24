@@ -12,40 +12,50 @@ services:
       - ./otel-collector-config.yaml:/etc/otel-collector/config.yaml
     command: ["--config=/etc/otel-collector/config.yaml"]
 
-  influxdb:
+  influxdb-a:
     image: influxdb:2.7
-    container_name: influxdb
+    container_name: influxdb-a
     restart: unless-stopped
     networks:
       - monitoring
     ports:
       - "8086:8086"
     environment:
-      # Direct environment variables instead of secrets
       DOCKER_INFLUXDB_INIT_MODE: setup
       DOCKER_INFLUXDB_INIT_USERNAME: admin
       DOCKER_INFLUXDB_INIT_PASSWORD: password123
       DOCKER_INFLUXDB_INIT_ORG: docs
-      DOCKER_INFLUXDB_INIT_BUCKET: home
+      DOCKER_INFLUXDB_INIT_BUCKET: ports
       DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: mytoken123456789
-    # secrets:
-    #   - influxdb2-admin-username
-    #   - influxdb2-admin-password
-    #   - influxdb2-admin-token
     volumes:
-      - influxdb-data:/var/lib/influxdb2
+      - influxdb-data-a:/var/lib/influxdb2
+      - influxdb-config-a:/etc/influxdb2
+
+  influxdb-b:
+    image: influxdb:2.7
+    container_name: influxdb-b
+    restart: unless-stopped
+    networks:
+      - monitoring
+    ports:
+      - "8087:8086" # host:container
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: password123
+      DOCKER_INFLUXDB_INIT_ORG: docs
+      DOCKER_INFLUXDB_INIT_BUCKET: buffers
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: mytoken123456789
+    volumes:
+      - influxdb-data-b:/var/lib/influxdb2
+      - influxdb-config-b:/etc/influxdb2
+
 networks:
   monitoring:
     driver: bridge
 
-
-# secrets:
-#   influxdb2-admin-username:
-#     file: ~/.env.influxdb2-admin-username
-#   influxdb2-admin-password:
-#     file: ~/.env.influxdb2-admin-password
-#   influxdb2-admin-token:
-#     file: ~/.env.influxdb2-admin-token
-
 volumes:
-  influxdb-data:
+  influxdb-data-a:
+  influxdb-config-a:
+  influxdb-data-b:
+  influxdb-config-b:
